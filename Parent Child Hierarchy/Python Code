@@ -1,0 +1,46 @@
+# This code is used to create an hierarchy without having a parent key column
+
+# Import the python libraries
+import pandas as pd
+import numpy as np
+
+# Import the data
+df = pd.read_excel(r'C:\Users\Project_Data.xlsx', sheet_name = 'Table1')
+
+# Create a new column with the depth of the hierarchy checking the "."
+df['Depth'] = df['WbsCode'].str.count('\.') + 1
+
+# Pivot the column Depth and return the values from WbsCodeName in order to create the hierarchy
+df = df.pivot(index=['TaskId', 'WbsCode', 'TaskName', 'TaskNameWbsCode'], columns='Depth', values='TaskNameWbsCode')
+
+# Rename the columns to match the desired naming pattern (Level 1, Level 2....)
+df.columns = [f"Level{col}" for col in df .columns]
+
+# Reset the index
+df.reset_index(inplace=True)
+
+# Create a new column with the depth of the hierarchy, because it was deleted with the pivot above
+df['Depth'] = df['WbsCode'].str.count('\.') + 1
+
+# Get the names of the level columns 
+level_columns = df.columns[df.columns.str.startswith('Level')]
+
+# This code is necessary because we cannot just use the ffill method because we need to check if it is a new level in the hierarchy or not. 
+# We need to stop the fill down in the beginning of each new hierarchy. That is why it is returning 1 as a markdown, later we are going to replace the 1 for nan
+# The code iterates through the level columns to fill NaN values with 1 based on the previous level
+for i in range(1, len(level_columns)):
+    current_level_column = level_columns[i]
+    previous_level_column = level_columns[i - 1]
+    df.loc[df[previous_level_column].notna(), current_level_column] = 1
+
+# Fill NA/NaN values by propagating the last valid observation to next valid
+df[level_columns] = df[level_columns].apply(lambda x: x.fillna(method='ffill'))
+
+# Replace the 1 with nan
+df[level_columns] = df[level_columns].apply(lambda x: x.replace(1, np.nan))
+
+# Export the data back to Excel
+df.to_excel(r'C:\Users\Project_Data_Hierarchy.xlsx', sheet_name = 'Table1')
+
+
+
