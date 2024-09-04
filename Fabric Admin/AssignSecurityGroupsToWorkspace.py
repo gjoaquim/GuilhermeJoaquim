@@ -20,8 +20,67 @@ Create a function to get the object ID from Microsoft Entra ID group using Micro
 The aplication (Service Principal) needs the Group.Read.All permission
 """
 # Function to create the access token
-def get_access(tenant_id, client_id, client_secret):
-    
+def get_access_token(tenant_id, client_id, client_secret):
+    url = f'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token'
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
+    body = {
+        'client_id': client_id,
+        'scope': 'https://graph.microsoft.com/.default',
+        'client_secret': client_secret,
+        'grant_type': 'client_credentials'
+    }
+    response = requests.post(url, headers=headers, data=body)
+    response_data = response.json()
+
+    # Check if the response contains 'access_token'
+    if 'access_token' in response_data:
+        return response_data['access_token']
+    else:
+        # Print the error details for debugging
+        error_description = response_data.get('error_description', 'No error description provided.')
+        error = response_data.get('error', 'No error code provided.')
+        print(f"Error obtaining access token: {error} - {error_description}")
+        return None
+
+# Function to get all groups
+def get_all_groups(access_token):
+    url = "https://graph.microsoft.com/v1.0/groups"
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Content-Type': 'application/json'
+    }
+    groups = []
+    while url:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            groups.extend(data.get('value', []))
+            url = data.get('@odata.nextLink')  # URL for the next page of groups, if any
+        else:
+            print(f"Failed to fetch groups: {response.status_code} - {response.text}")
+            break
+    return groups
+
+# This function gets the group id based on the name
+def get_group_id(group_name, access_token):
+    url = f'https://graph.microsoft.com/v1.0/groups?$filter=displayName eq \'{group_name}\''
+    headers = {
+        'Authorization': f'Bearer {access_token}'
+    }
+    response = requests.get(url, headers=headers)
+    groups = response.json().get('value', [])
+    if groups:
+        return groups[0]['id']  # Assuming the first match is the desired group
+    return None
+
+# Call the function to get the access token
+access_token = get_access_token(tenant_id, client_id, client_secret)
+
+# Call the function to get the object id from the Microsoft entra id group
+# The application must have the API permission for Group.Read.All as application and granted for the tenant
+ad_pbi_id = get_group_id(ad_pbi, access_token)
 
 # Power BI authetification
 ## Saving the Power BI REST API
@@ -45,6 +104,32 @@ pbi = pbipy.PowerBI(access_token)
 
 # Get the methods from the Python class admin from pbipy
 admin = pbi.admin()
+
+def add_user_to_group(workspace, identifier, access_right, principal_type):
+    try:
+        # Attempt to add the user to the group
+        response = pbi.group(workspace.id).add_user(identifier=identifier, access_right=access_right, principal_type=principal_type)
+        print(f"User {identifier} added as {access_right} to {workspace.name}.")
+    except Exception as e:
+        # Handle exceptions that may occur if the user or group does not exist, or if the user is already in the group
+        print(f"Failed to add user {identifier} to {workspace.name}: {str(e)}")
+
+# Assuming ws_dev, ws_qual, and ws_prod are defined and valid workspace objects
+try:
+    add_user_to_group(ws_dev, ad_pbi_id, "Admin", "Group")
+    add_user_to_group(ws_dev, ad_dvs_id, "Contributor", "Group")
+    add_user_to_group(ws_dev, ad_opr_id, "Member", "Group")
+
+    add_user_to_group(ws_qual, ad_pbi_id, "Admin", "Group")
+    add_user_to_group(ws_qual, ad_dvs_id, "Contributor", "Group")
+    add_user_to_group(ws_qual, ad_opr_id, "Member", "Group")
+
+    add_user_to_group(ws_prod, ad_pbi_id, "Admin", "Group")
+    add_user_to_group(ws_prod, ad_dvs_id, "Contributor", "Group")
+    add_user_to_group(ws_prod, ad_opr_id, "Member", "Group")
+except Exception as e:
+    print(f"An error occurred: {str(e)}")
+
 
 # Create a function to check if the workspace you want to create already exists. This function returns TRUE or FALSE
 def check_workspace_exists(df, workspace_name):
