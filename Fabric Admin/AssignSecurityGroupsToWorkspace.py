@@ -9,11 +9,11 @@ tenant_id = ''
 client_id = ''
 client_secret = '' # Better use Azure Key Vault or any other Vault alternative
 
-# Enter the workspace name
-workspace_name = 'dev-test-gj'
-
 # Enter the Microsoft Entra ID security group
 group_name = 'Enter your security group name'
+
+# Enter the workspace id that you want to add the security group(s)
+workspace_id = 'Enter the workspace id'
 
 """
 Create a function to get the object ID from Microsoft Entra ID group using Microsoft Graph
@@ -80,7 +80,7 @@ access_token = get_access_token(tenant_id, client_id, client_secret)
 
 # Call the function to get the object id from the Microsoft entra id group
 # The application must have the API permission for Group.Read.All as application and granted for the tenant
-ad_pbi_id = get_group_id(ad_pbi, access_token)
+group_name_id = get_group_id(group_name, access_token)
 
 # Power BI authetification
 ## Saving the Power BI REST API
@@ -102,63 +102,19 @@ header = {'Authorization': f'Bearer {access_token}',
 # Use the pbipy library as Python wrapper to use the Power BI API
 pbi = pbipy.PowerBI(access_token)
 
-# Get the methods from the Python class admin from pbipy
-admin = pbi.admin()
-
+# Create a function to add the security group using the pbipy library
+# The Service Principal has to be a member of the workspace
 def add_user_to_group(workspace, identifier, access_right, principal_type):
     try:
         # Attempt to add the user to the group
-        response = pbi.group(workspace.id).add_user(identifier=identifier, access_right=access_right, principal_type=principal_type)
-        print(f"User {identifier} added as {access_right} to {workspace.name}.")
+        response = pbi.group(workspace).add_user(identifier=identifier, access_right=access_right, principal_type=principal_type)
+        print(f"User {identifier} added as {access_right} to {workspace}.")
     except Exception as e:
         # Handle exceptions that may occur if the user or group does not exist, or if the user is already in the group
-        print(f"Failed to add user {identifier} to {workspace.name}: {str(e)}")
+        print(f"Failed to add user {identifier} to {workspace}: {str(e)}")
 
-# Assuming ws_dev, ws_qual, and ws_prod are defined and valid workspace objects
+# Assign the security group to the workspace with a defined role
 try:
-    add_user_to_group(ws_dev, ad_pbi_id, "Admin", "Group")
-    add_user_to_group(ws_dev, ad_dvs_id, "Contributor", "Group")
-    add_user_to_group(ws_dev, ad_opr_id, "Member", "Group")
-
-    add_user_to_group(ws_qual, ad_pbi_id, "Admin", "Group")
-    add_user_to_group(ws_qual, ad_dvs_id, "Contributor", "Group")
-    add_user_to_group(ws_qual, ad_opr_id, "Member", "Group")
-
-    add_user_to_group(ws_prod, ad_pbi_id, "Admin", "Group")
-    add_user_to_group(ws_prod, ad_dvs_id, "Contributor", "Group")
-    add_user_to_group(ws_prod, ad_opr_id, "Member", "Group")
+    add_user_to_group(workspace_id, group_name_id, "Member", "Group")
 except Exception as e:
     print(f"An error occurred: {str(e)}")
-
-
-# Create a function to check if the workspace you want to create already exists. This function returns TRUE or FALSE
-def check_workspace_exists(df, workspace_name):
-    existing_name = set(df['name'].values)
-    result = workspace_name in existing_name
-    return result
-
-# Get all workspaces in the tenant. Make sure to add your Service Principal in the Fabric Admin settings to read admin data
-workspace_tenant = admin.groups()
-
-# Extract 'id' and 'name' directly from each group object
-data = [{'Group id': ws.id, 'name': ws.name} for ws in workspace_tenant]
-
-# Create a pandas DataFrame from the extracted data
-df_workspace = pd.DataFrame(data)
-
-# Check if the workspace you want to create already exists calling the function "check_workspace_exists"
-workspace_check_existence = check_workspace_exists(df_workspace, workspace_name)
-
-# Create workspace only if it does not exist
-if not workspace_check_existence:
-    # Create DEV workspace
-    workspace_dev = pbi.create_group(name = workspace_name)
-    print(f"Workspace '{workspace_dev.name}' created.")
-    # Create TEST workspace
-    workspace_test = pbi.create_group(name = workspace_name.replace('dev', 'test'))
-    print(f"Workspace '{workspace_test.name}' created.")
-    # Create PROD workspace
-    workspace_prod = pbi.create_group(name = workspace_name.replace('dev', 'prod'))
-    print(f"Workspace '{workspace_prod.name}' created.")
-else:
-    print(f"A workspace with the name '{workspace_name}' already exists")
