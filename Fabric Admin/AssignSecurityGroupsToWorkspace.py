@@ -114,7 +114,4 @@ def add_user_to_group(workspace, identifier, access_right, principal_type):
         print(f"Failed to add user {identifier} to {workspace}: {str(e)}")
 
 # Assign the security group to the workspace with a defined role
-try:
-    add_user_to_group(workspace_id, group_name_id, "Member", "Group")
-except Exception as e:
-    print(f"An error occurred: {str(e)}")
+add_user_to_group(workspace_id, group_name_id, "Member", "Group")
