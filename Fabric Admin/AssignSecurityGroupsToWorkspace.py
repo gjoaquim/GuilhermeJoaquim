@@ -1,3 +1,6 @@
+# For more information about this code check here: 
+# https://www.data-traveling.com/articles/part-2-microsoft-fabric-admin-adding-entra-id-groups-to-workspaces-with-semantic-link-and-python
+
 import pandas as pd
 import pbipy
 import requests

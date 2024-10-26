@@ -1,3 +1,6 @@
+# For more information about this code check here: 
+# https://www.data-traveling.com/articles/microsoft-fabric-admin-how-to-create-multiple-workspaces-using-python
+
 import pandas as pd
 import pbipy
 import requests
